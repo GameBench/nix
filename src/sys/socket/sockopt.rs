@@ -397,7 +397,7 @@ sockopt_impl!(
     libc::IP_TOS,
     libc::c_int
 );
-#[cfg(any(target_os = "android", target_os = "linux"))]
+#[cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "ios"))]
 #[cfg(feature = "net")]
 sockopt_impl!(
     #[cfg_attr(docsrs, doc(cfg(feature = "net")))]
@@ -408,7 +408,7 @@ sockopt_impl!(
     libc::IPV6_TCLASS,
     libc::c_int
 );
-#[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux"))]
+#[cfg(any(target_os = "android", target_os = "fuchsia", target_os = "linux", target_os = "macos", target_os = "ios"))]
 #[cfg(feature = "net")]
 sockopt_impl!(
     #[cfg_attr(docsrs, doc(cfg(feature = "net")))]
