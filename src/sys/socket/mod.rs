@@ -1,6 +1,9 @@
 //! Socket interface functions
 //!
 //! [Further reading](https://man7.org/linux/man-pages/man7/socket.7.html)
+
+#![allow(unused)]
+
 #[cfg(any(target_os = "android", target_os = "linux"))]
 #[cfg(feature = "uio")]
 use crate::sys::time::TimeSpec;
@@ -1563,6 +1566,8 @@ pub fn sendmsg<S>(fd: RawFd, iov: &[IoSlice<'_>], cmsgs: &[ControlMessage],
     target_os = "android",
     target_os = "freebsd",
     target_os = "netbsd",
+    target_os = "macos",
+    target_os = "ios"
 ))]
 pub fn sendmmsg<'a, XS, AS, C, I, S>(
     fd: RawFd,
@@ -1581,12 +1586,17 @@ pub fn sendmmsg<'a, XS, AS, C, I, S>(
         C: AsRef<[ControlMessage<'a>]> + 'a,
         S: SockaddrLike + 'a
 {
-
+    #[allow(unused)]
     let mut count = 0;
 
 
     for (i, ((slice, addr), mmsghdr)) in slices.into_iter().zip(addrs.as_ref()).zip(data.items.iter_mut() ).enumerate() {
+        #[cfg(not(any(target_os = "macos",target_os = "ios")))]
         let p = &mut mmsghdr.msg_hdr;
+
+        #[cfg(any(target_os = "macos",target_os = "ios"))]
+        let p = mmsghdr;
+
         p.msg_iov = slice.as_ref().as_ptr() as *mut libc::iovec;
         p.msg_iovlen = slice.as_ref().len() as _;
 
@@ -1606,14 +1616,33 @@ pub fn sendmmsg<'a, XS, AS, C, I, S>(
             pmhdr = unsafe { CMSG_NXTHDR(p, pmhdr) };
         }
 
+
         count = i+1;
     }
 
+    #[cfg(any(
+    target_os = "linux",
+    target_os = "android",
+    target_os = "freebsd",
+    target_os = "netbsd",
+))]
     let sent = Errno::result(unsafe {
         libc::sendmmsg(
             fd,
             data.items.as_mut_ptr(),
             count as _,
+            flags.bits() as _
+        )
+    })? as usize;
+
+        #[cfg(any(
+        target_os = "macos",
+    target_os = "ios"
+))]
+    let sent = Errno::result(unsafe {
+        libc::sendmsg(
+            fd,
+            data.items.as_mut_ptr(),
             flags.bits() as _
         )
     })? as usize;
@@ -1632,12 +1661,23 @@ pub fn sendmmsg<'a, XS, AS, C, I, S>(
     target_os = "android",
     target_os = "freebsd",
     target_os = "netbsd",
+    target_os = "macos",
+    target_os = "ios"
 ))]
 #[derive(Debug)]
 /// Preallocated structures needed for [`recvmmsg`] and [`sendmmsg`] functions
 pub struct MultiHeaders<S> {
     // preallocated boxed slice of mmsghdr
+ #[cfg(not(any(
+    target_os = "macos",
+    target_os = "ios",
+)))]
     items: Box<[libc::mmsghdr]>,
+#[cfg(any(
+    target_os = "macos",
+    target_os = "ios",
+))]
+    items: Box<[libc::msghdr]>,
     addresses: Box<[mem::MaybeUninit<S>]>,
     // while we are not using it directly - this is used to store control messages
     // and we retain pointers to them inside items array
@@ -1650,6 +1690,8 @@ pub struct MultiHeaders<S> {
     target_os = "android",
     target_os = "freebsd",
     target_os = "netbsd",
+    target_os = "macos",
+    target_os = "ios"
 ))]
 impl<S> MultiHeaders<S> {
     /// Preallocate structure used by [`recvmmsg`] and [`sendmmsg`] takes number of headers to preallocate
@@ -1679,10 +1721,15 @@ impl<S> MultiHeaders<S> {
                     None => (std::ptr::null(), 0),
                 };
                 let msg_hdr = unsafe { pack_mhdr_to_receive(std::ptr::null(), 0, ptr, cap, address.as_mut_ptr()) };
+
+                #[cfg(not(any(target_os = "macos",target_os = "ios")))]
                 libc::mmsghdr {
                     msg_hdr,
                     msg_len: 0,
-                }
+                };
+
+                #[cfg(any(target_os = "macos",target_os = "ios"))]
+                msg_hdr
             })
             .collect::<Vec<_>>();
 
@@ -1719,7 +1766,7 @@ impl<S> MultiHeaders<S> {
 // On aarch64 linux using recvmmsg and trying to get hardware/kernel timestamps might not
 // always produce the desired results - see https://github.com/nix-rust/nix/pull/1744 for more
 // details
-
+#[allow(unused)]
 #[cfg(any(
     target_os = "linux",
     target_os = "android",
@@ -1739,18 +1786,34 @@ where
     XS: IntoIterator<Item = &'a I>,
     I: AsRef<[IoSliceMut<'a>]> + 'a,
 {
+    #[allow(unused)]
     let mut count = 0;
+
     for (i, (slice, mmsghdr)) in slices.into_iter().zip(data.items.iter_mut()).enumerate() {
+    #[cfg(not(any(target_os = "macos",target_os = "ios")))]
         let p = &mut mmsghdr.msg_hdr;
+
+    #[cfg(any(target_os = "macos",target_os = "ios"))]
+        let p = mmsghdr;
+
         p.msg_iov = slice.as_ref().as_ptr() as *mut libc::iovec;
         p.msg_iovlen = slice.as_ref().len() as _;
+
+
         count = i + 1;
     }
 
+    #[cfg(not(any(target_os = "macos",target_os = "ios")))]
     let timeout_ptr = timeout
         .as_mut()
         .map_or_else(std::ptr::null_mut, |t| t as *mut _ as *mut libc::timespec);
 
+    #[cfg(any(
+    target_os = "linux",
+    target_os = "android",
+    target_os = "freebsd",
+    target_os = "netbsd",
+))]
     let received = Errno::result(unsafe {
         libc::recvmmsg(
             fd,
@@ -1758,6 +1821,18 @@ where
             count as _,
             flags.bits() as _,
             timeout_ptr,
+        )
+    })? as usize;
+
+        #[cfg(any(
+    target_os = "macos",
+    target_os = "ios",
+))]
+    let received = Errno::result(unsafe {
+        libc::recvmsg(
+            fd,
+            data.items.as_mut_ptr(),
+            flags.bits() as _,
         )
     })? as usize;
 
@@ -1773,6 +1848,8 @@ where
     target_os = "android",
     target_os = "freebsd",
     target_os = "netbsd",
+    target_os = "macos",
+    target_os = "ios"
 ))]
 #[derive(Debug)]
 /// Iterator over results of [`recvmmsg`]/[`sendmmsg`]
@@ -1790,6 +1867,8 @@ pub struct MultiResults<'a, S> {
     target_os = "android",
     target_os = "freebsd",
     target_os = "netbsd",
+    target_os = "macos",
+    target_os = "ios"
 ))]
 impl<'a, S> Iterator for MultiResults<'a, S>
 where
@@ -1810,10 +1889,21 @@ where
         let address = unsafe { self.rmm.addresses[self.current_index].assume_init() };
 
         self.current_index += 1;
+    #[cfg(not(any(target_os = "macos",target_os = "ios")))]
         Some(unsafe {
             read_mhdr(
                 mmsghdr.msg_hdr,
                 mmsghdr.msg_len as isize,
+                self.rmm.msg_controllen,
+                address,
+            )
+        });
+
+        #[cfg(any(target_os = "macos",target_os = "ios"))]
+        Some(unsafe {
+            read_mhdr(
+                mmsghdr,
+                0 as isize,
                 self.rmm.msg_controllen,
                 address,
             )
@@ -1865,7 +1955,7 @@ impl<'a> Iterator for IoSliceIterator<'a> {
 
 // test contains both recvmmsg and timestaping which is linux only
 // there are existing tests for recvmmsg only in tests/
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux"))]
 #[cfg(test)]
 mod test {
     use crate::sys::socket::{AddressFamily, ControlMessageOwned};
