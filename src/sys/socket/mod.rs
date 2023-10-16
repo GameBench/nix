@@ -1723,8 +1723,6 @@ impl<S> MultiHeaders<S> {
 #[cfg(any(
     target_os = "linux",
     target_os = "android",
-    target_os = "macos",
-    target_os = "ios",
     target_os = "freebsd",
     target_os = "netbsd",
 ))]
