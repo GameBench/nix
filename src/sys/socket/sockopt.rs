@@ -385,6 +385,21 @@ sockopt_impl!(
     libc::SO_PRIORITY,
     libc::c_int
 );
+
+const SO_NET_SERVICE_TYPE_VAL: c_int = 0x1116;
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(feature = "net")]
+sockopt_impl!(
+    #[cfg_attr(docsrs, doc(cfg(feature = "net")))]
+    /// Set or receive the SO_NET_SERVICE_TYPE field that is
+    /// sent with every IP packet originating from this socket
+    SO_NET_SERVICE_TYPE,
+    Both,
+    libc::IPPROTO_IP,
+    SO_NET_SERVICE_TYPE_VAL,
+    libc::c_int
+);
+
 #[cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "ios"))]
 #[cfg(feature = "net")]
 sockopt_impl!(
