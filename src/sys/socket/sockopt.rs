@@ -395,7 +395,7 @@ sockopt_impl!(
     /// sent with every IP packet originating from this socket
     SO_NET_SERVICE_TYPE,
     Both,
-    libc::IPPROTO_IP,
+    libc::SOL_SOCKET,
     SO_NET_SERVICE_TYPE_VAL,
     libc::c_int
 );
